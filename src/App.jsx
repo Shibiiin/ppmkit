@@ -91,6 +91,7 @@ function HistoryIcon(props) {
 export default function App() {
   const [tab, setTab] = useState('home')
   const [members, setMembers] = useState([])
+  const [removedMembers, setRemovedMembers] = useState([])
   const [allPayments, setAllPayments] = useState([])
   const [month, setMonth] = useState(currentMonthStr())
   const [historyMonth, setHistoryMonth] = useState(currentMonthStr())
@@ -109,6 +110,7 @@ export default function App() {
 
   useEffect(() => {
     loadMembers()
+    loadRemovedMembers()
     loadAllPayments()
   }, [])
 
@@ -121,6 +123,16 @@ export default function App() {
     if (fetchError) setError(fetchError.message)
     else setMembers(data)
     setLoading(false)
+  }
+
+  async function loadRemovedMembers() {
+    const { data, error: fetchError } = await supabase
+      .from('members')
+      .select('*')
+      .eq('active', false)
+      .order('name')
+    if (fetchError) setError(fetchError.message)
+    else setRemovedMembers(data)
   }
 
   async function loadAllPayments() {
@@ -224,7 +236,27 @@ export default function App() {
       .update({ active: false })
       .eq('id', member.id)
     if (updateError) setError(updateError.message)
-    else setMembers((prev) => prev.filter((m) => m.id !== member.id))
+    else {
+      setMembers((prev) => prev.filter((m) => m.id !== member.id))
+      setRemovedMembers((prev) =>
+        [...prev, { ...member, active: false }].sort((a, b) => a.name.localeCompare(b.name))
+      )
+    }
+  }
+
+  async function restoreMember(member) {
+    setError('')
+    const { error: updateError } = await supabase
+      .from('members')
+      .update({ active: true })
+      .eq('id', member.id)
+    if (updateError) setError(updateError.message)
+    else {
+      setRemovedMembers((prev) => prev.filter((m) => m.id !== member.id))
+      setMembers((prev) =>
+        [...prev, { ...member, active: true }].sort((a, b) => a.name.localeCompare(b.name))
+      )
+    }
   }
 
   function startPress(member) {
@@ -568,6 +600,37 @@ export default function App() {
               })
             )}
           </ul>
+
+          {removedMembers.length > 0 && (
+            <div className="mt-6">
+              <p
+                className="mb-2 text-xs font-medium uppercase tracking-wide"
+                style={{ color: COLORS.muted }}
+              >
+                Removed members
+              </p>
+              <ul className="flex flex-col gap-2">
+                {removedMembers.map((member) => (
+                  <li
+                    key={member.id}
+                    className="flex items-center gap-3 rounded-2xl px-3 py-3"
+                    style={{ backgroundColor: '#FFFFFF', border: `1px solid ${COLORS.border}` }}
+                  >
+                    <span className="flex-1 truncate text-sm font-medium" style={{ color: COLORS.mutedLight }}>
+                      {member.name}
+                    </span>
+                    <button
+                      onClick={() => restoreMember(member)}
+                      className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-opacity hover:opacity-90"
+                      style={{ backgroundColor: COLORS.greenTint, color: COLORS.green }}
+                    >
+                      Restore
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </>
       )}
 
