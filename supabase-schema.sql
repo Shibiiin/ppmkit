@@ -26,8 +26,22 @@ create table if not exists payments (
 create index if not exists payments_month_idx on payments (month);
 create index if not exists payments_member_id_idx on payments (member_id);
 
+-- Holds an edited amount for a member+month before they've been marked
+-- paid (payments.amount is the source of truth once a payment row
+-- exists — see App.jsx's amount fallback chain: payment -> override ->
+-- default_amount -> MONTHLY_AMOUNT). Without this, an edited-but-unpaid
+-- amount only lived in local React state and was lost on refresh.
+create table if not exists month_amount_overrides (
+  member_id uuid not null references members (id) on delete cascade,
+  month date not null,
+  amount numeric not null,
+  updated_at timestamptz not null default now(),
+  primary key (member_id, month)
+);
+
 alter table members enable row level security;
 alter table payments enable row level security;
+alter table month_amount_overrides enable row level security;
 
 -- This app has no login system — anyone with the anon key (i.e. anyone who has
 -- the deployed URL) can read and write. That matches "members mark themselves
@@ -52,6 +66,9 @@ create policy "Anyone can add payments" on payments
 create policy "Anyone can delete payments" on payments
   for delete to anon using (true);
 
+create policy "allow all" on month_amount_overrides
+  for all to anon using (true) with check (true);
+
 -- Realtime: lets every open tab/device see paid-status changes instantly.
 -- Wrapped in existence checks since ALTER PUBLICATION ... ADD TABLE errors
 -- if the table is already in the publication (e.g. re-running this file).
@@ -69,5 +86,12 @@ begin
     where pubname = 'supabase_realtime' and tablename = 'payments'
   ) then
     alter publication supabase_realtime add table payments;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'month_amount_overrides'
+  ) then
+    alter publication supabase_realtime add table month_amount_overrides;
   end if;
 end $$;

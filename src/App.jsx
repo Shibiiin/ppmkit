@@ -94,6 +94,7 @@ export default function App() {
   const [members, setMembers] = useState([])
   const [removedMembers, setRemovedMembers] = useState([])
   const [allPayments, setAllPayments] = useState([])
+  const [allOverrides, setAllOverrides] = useState([])
   const [month, setMonth] = useState(currentMonthStr())
   const [historyMonth, setHistoryMonth] = useState(currentMonthStr())
   const [search, setSearch] = useState('')
@@ -101,7 +102,6 @@ export default function App() {
   const [newMemberAmount, setNewMemberAmount] = useState(String(MONTHLY_AMOUNT))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [amountOverrides, setAmountOverrides] = useState({})
   const [actionMenuMember, setActionMenuMember] = useState(null)
   const [editingMember, setEditingMember] = useState(null)
   const [editAmountValue, setEditAmountValue] = useState('')
@@ -121,11 +121,8 @@ export default function App() {
     loadMembers()
     loadRemovedMembers()
     loadAllPayments()
+    loadAllOverrides()
   }, [])
-
-  useEffect(() => {
-    setAmountOverrides({})
-  }, [month])
 
   useEffect(() => {
     function upsert(list, row) {
@@ -168,6 +165,19 @@ export default function App() {
           setAllPayments((prev) => upsert(prev, payload.new))
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'month_amount_overrides' },
+        (payload) => {
+          const key = payload.eventType === 'DELETE' ? payload.old : payload.new
+          setAllOverrides((prev) => {
+            const rest = prev.filter(
+              (o) => !(o.member_id === key.member_id && o.month === key.month)
+            )
+            return payload.eventType === 'DELETE' ? rest : [...rest, payload.new]
+          })
+        }
+      )
       .subscribe()
 
     return () => {
@@ -202,9 +212,20 @@ export default function App() {
     else setAllPayments(data)
   }
 
+  async function loadAllOverrides() {
+    const { data, error: fetchError } = await supabase.from('month_amount_overrides').select('*')
+    if (fetchError) setError(fetchError.message)
+    else setAllOverrides(data)
+  }
+
   const paymentsForMonth = useMemo(
     () => allPayments.filter((p) => p.month === monthDate),
     [allPayments, monthDate]
+  )
+
+  const overridesForMonth = useMemo(
+    () => allOverrides.filter((o) => o.month === monthDate),
+    [allOverrides, monthDate]
   )
 
   const paidMemberIds = useMemo(
@@ -266,7 +287,8 @@ export default function App() {
       if (deleteError) setError(deleteError.message)
       else setAllPayments((prev) => prev.filter((p) => p.id !== existing.id))
     } else {
-      const amount = amountOverrides[member.id] ?? member.default_amount ?? MONTHLY_AMOUNT
+      const override = overridesForMonth.find((o) => o.member_id === member.id)
+      const amount = override?.amount ?? member.default_amount ?? MONTHLY_AMOUNT
       const { data, error: insertError } = await supabase
         .from('payments')
         .insert({ member_id: member.id, month: monthDate, amount })
@@ -351,8 +373,9 @@ export default function App() {
 
   function openEdit(member) {
     const existing = paymentsForMonth.find((p) => p.member_id === member.id)
+    const override = overridesForMonth.find((o) => o.member_id === member.id)
     const currentAmount =
-      existing?.amount ?? amountOverrides[member.id] ?? member.default_amount ?? MONTHLY_AMOUNT
+      existing?.amount ?? override?.amount ?? member.default_amount ?? MONTHLY_AMOUNT
     setEditAmountValue(String(currentAmount))
     setEditingMember(member)
     setActionMenuMember(null)
@@ -376,7 +399,22 @@ export default function App() {
           prev.map((p) => (p.id === existing.id ? { ...p, amount } : p))
         )
     } else {
-      setAmountOverrides((prev) => ({ ...prev, [editingMember.id]: amount }))
+      const { data, error: upsertError } = await supabase
+        .from('month_amount_overrides')
+        .upsert(
+          { member_id: editingMember.id, month: monthDate, amount },
+          { onConflict: 'member_id,month' }
+        )
+        .select()
+        .single()
+      if (upsertError) setError(upsertError.message)
+      else
+        setAllOverrides((prev) => {
+          const rest = prev.filter(
+            (o) => !(o.member_id === data.member_id && o.month === data.month)
+          )
+          return [...rest, data]
+        })
     }
     setEditingMember(null)
   }
@@ -409,7 +447,12 @@ export default function App() {
     touchStartYRef.current = null
     if (pullDistance > 50) {
       setRefreshing(true)
-      await Promise.all([loadMembers(), loadRemovedMembers(), loadAllPayments()])
+      await Promise.all([
+        loadMembers(),
+        loadRemovedMembers(),
+        loadAllPayments(),
+        loadAllOverrides(),
+      ])
       setRefreshing(false)
     }
     setPullDistance(0)
@@ -604,8 +647,9 @@ export default function App() {
               {filteredMembers.map((member) => {
                 const paid = paidMemberIds.has(member.id)
                 const payment = paymentsForMonth.find((p) => p.member_id === member.id)
+                const override = overridesForMonth.find((o) => o.member_id === member.id)
                 const amount =
-                  payment?.amount ?? amountOverrides[member.id] ?? member.default_amount ?? MONTHLY_AMOUNT
+                  payment?.amount ?? override?.amount ?? member.default_amount ?? MONTHLY_AMOUNT
                 return (
                   <li
                     key={member.id}
