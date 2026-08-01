@@ -1,15 +1,19 @@
-# PPM Charity Fund Tracker
+# കിറ്റ് ഫണ്ട് (PPM Kit)
 
-A small React + Vite + Supabase app for tracking a monthly group fund. Members
-mark themselves as paid for the current month, an admin can share a WhatsApp
-report of who has/hasn't paid, and full payment history is stored in
-Supabase.
+A small React + Vite + Supabase app for tracking a monthly group fund
+("kit fund"). Members are marked paid for the current month, an admin can
+share a WhatsApp report, and full payment history is stored in Supabase.
+The in-app title is shown in Malayalam (കിറ്റ് ഫണ്ട്); the browser tab
+title is "PPM Kit".
 
 ## Stack
 
 - React 19 + Vite
-- Tailwind CSS
-- Supabase (Postgres + auto-generated REST API)
+- Tailwind CSS, with a custom cream/green/gold color system (see
+  `COLORS` in `src/App.jsx`) — this is not default Tailwind styling
+- Supabase (Postgres + auto-generated REST API) for all persistence —
+  members, payments, and history all live in Supabase, not in any
+  browser-local or app-local storage
 
 ## Setup
 
@@ -23,6 +27,10 @@ Supabase.
    open **SQL Editor** in your project dashboard and run the contents of
    [`supabase-schema.sql`](./supabase-schema.sql). This creates the
    `members` and `payments` tables with row-level security enabled.
+   `members.default_amount` stores each member's editable due amount;
+   `payments.amount` stores what was actually recorded when they were
+   marked paid for a given month. Re-running the file against a database
+   that already has these tables is safe (uses `if not exists`).
 
 3. Copy `.env.example` to `.env` and fill in your project's credentials
    (Project Settings → API):
@@ -55,22 +63,28 @@ Supabase.
 
 ## How it works
 
-The app has two tabs, switched via the bottom nav bar:
+The app has two tabs, switched via the icon-based bottom nav bar (Home /
+History, active tab shown in green):
 
 **Home**
+- A green summary card at the top shows the total collected this month and
+  how many members have paid, with a gold progress bar underneath.
 - Search members by name.
 - Add members with name + amount (amount defaults to `VITE_MONTHLY_AMOUNT`
-  but is editable per member).
-- Tap a member's row to toggle them paid/unpaid for the selected month
-  (stamped with that member's amount). Press and hold a row (~500ms, mouse
-  or touch) to remove that member, with a confirmation prompt first.
-- "Share on WhatsApp" builds a plain-text summary of only the members who've
-  paid for the selected month, with each amount and a total, and opens
-  WhatsApp's share link so you can send it to the group.
+  but is editable per member, before adding).
+- Tap a member's row to toggle them paid/unpaid for the selected month —
+  paid rows turn green-tinted with a green check-circle; the amount
+  recorded is that member's configured amount. Press and hold a row
+  (~500ms, works with both mouse and touch) to remove that member, which
+  asks for confirmation first (`window.confirm`) — a normal tap never
+  deletes anything.
+- "Share on WhatsApp" (gold button) builds a plain-text summary of only
+  the members who've paid for the selected month, with each amount and a
+  total, and opens WhatsApp's share link so you can send it to the group.
 
 **History**
-- Three summary cards: total members, total collected across all months to
-  date, and last calendar month's total.
+- Three summary cards in a single row (total members, total collected
+  across all months to date, and last calendar month's total).
 - A month picker to browse any past (or future) month and see who paid and
   how much, independent of what's selected on Home.
 
@@ -82,10 +96,30 @@ paid" design. If you need to restrict who can mark payments, add Supabase
 Auth and tighten the RLS policies in `supabase-schema.sql` to check
 `auth.uid()`.
 
-## Deployment (Netlify)
+## Deployment
+
+The app is deployed to **GitHub Pages** via GitHub Actions
+(`.github/workflows/deploy.yml`): every push to `main` runs `npm ci` and
+`npm run build` with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+injected from repo secrets (Settings → Secrets and variables → Actions),
+then deploys `dist/` via `actions/deploy-pages`. Pages source is set to
+"GitHub Actions" (Settings → Pages), not a branch.
+
+`vite.config.js`'s `base` switches automatically depending on where it's
+built: `/ppmcharity/` when `GITHUB_PAGES=true` (set by the workflow, since
+Pages serves from that subpath), otherwise `/` (for local dev or any
+root-domain host like Netlify).
+
+Live: **https://shibiiin.github.io/ppmcharity/**
+
+### Alternative: Netlify
+
+The app also builds cleanly for Netlify, which serves from the domain
+root (no `base` path needed):
 
 1. Push this repo to GitHub.
-2. In Netlify, "Add new site" → "Import an existing project" → pick the repo.
+2. In Netlify, "Add new site" → "Import an existing project" → pick the
+   repo.
 3. Build command: `npm run build`, publish directory: `dist`.
 4. Add environment variables under Site settings → Environment variables:
    - `VITE_SUPABASE_URL`
