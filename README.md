@@ -34,10 +34,17 @@ Supabase.
    ```
    VITE_SUPABASE_URL=https://your-project-ref.supabase.co
    VITE_SUPABASE_ANON_KEY=your-anon-key
+   VITE_MONTHLY_AMOUNT=100
+   VITE_CURRENCY_SYMBOL=₹
    ```
 
    `.env` is gitignored and should never be committed — it holds real
    credentials. Only `.env.example` (with placeholder values) is tracked.
+
+   `VITE_MONTHLY_AMOUNT` is the fixed due amount recorded whenever a member
+   is marked paid (every member pays the same amount each month).
+   `VITE_CURRENCY_SYMBOL` is just a display symbol used in the UI and the
+   WhatsApp report — change it to match your currency.
 
 4. Start the dev server:
 
@@ -47,13 +54,22 @@ Supabase.
 
 ## How it works
 
+The app has two tabs, switched via the bottom nav bar:
+
+**Home**
+- Search members by name.
 - Add members with the "Add" form.
-- Click a member's row to toggle them paid/unpaid for the selected month.
-- Use the month picker to view or edit any past or future month — this is
-  your payment history.
-- "Share on WhatsApp" builds a plain-text summary of who's paid and who
-  hasn't for the selected month and opens WhatsApp's share link so you can
-  send it to the group.
+- Click a member's row to toggle them paid/unpaid for the selected month
+  (each paid record is stamped with `VITE_MONTHLY_AMOUNT`).
+- "Share on WhatsApp" builds a plain-text summary of only the members who've
+  paid for the selected month, with each amount and a total, and opens
+  WhatsApp's share link so you can send it to the group.
+
+**History**
+- Three summary cards: total members, total collected across all months to
+  date, and last calendar month's total.
+- A month picker to browse any past (or future) month and see who paid and
+  how much, independent of what's selected on Home.
 
 ## Security note
 
