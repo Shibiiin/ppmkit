@@ -98,32 +98,27 @@ Auth and tighten the RLS policies in `supabase-schema.sql` to check
 
 ## Deployment
 
-The app is deployed to **GitHub Pages** via GitHub Actions
-(`.github/workflows/deploy.yml`): every push to `main` runs `npm ci` and
-`npm run build` with `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
-`VITE_MONTHLY_AMOUNT`, and `VITE_CURRENCY_SYMBOL` injected from repo
-secrets (Settings → Secrets and variables → Actions) — all four are
-required, since a missing one silently falls back to an empty/zero value
-at build time rather than erroring — then deploys `dist/` via
-`actions/deploy-pages`. Pages source is set to "GitHub Actions" (Settings
-→ Pages), not a branch.
-
-`vite.config.js`'s `base` switches automatically depending on where it's
-built: `/ppmkit/` when `GITHUB_PAGES=true` (set by the workflow, since
-Pages serves from that subpath), otherwise `/` (for local dev, Vercel, or
-any root-domain host like Netlify).
-
-Live: **https://shibiiin.github.io/ppmkit/**
-
-### Alternative: Vercel
-
-Also deployed to Vercel, linked via `npx vercel link` with Git integration
-connected to this repo — every push to `main` auto-deploys to Production,
-other branches/PRs get Preview deployments. All four env vars
+The app is deployed to **Vercel**, linked via `npx vercel link` with Git
+integration connected to this repo — every push to `main` auto-deploys to
+Production, other branches/PRs get Preview deployments. All four env vars
 (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_MONTHLY_AMOUNT`,
 `VITE_CURRENCY_SYMBOL`) are set for Production, Preview, and Development
 via `vercel env add` — all four matter, since a missing one silently
 falls back to an empty/zero value at build time rather than erroring.
+
+Vercel serves from the domain root, so `vite.config.js`'s `base` resolves
+to `/` there (see the comment on `base` in that file for the full
+per-platform logic).
+
+Live: **https://ppmkit-bbs.vercel.app/**
+
+### Deprecated: GitHub Pages
+
+This app used to also deploy to GitHub Pages via GitHub Actions. That
+workflow has been removed and Pages has been turned off (source set to
+"None" in Settings → Pages) to avoid having two live URLs — Vercel is now
+the only deployment target. `https://shibiiin.github.io/ppmkit/` is no
+longer live.
 
 ### Alternative: Netlify
 
