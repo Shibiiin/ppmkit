@@ -63,6 +63,9 @@ create policy "Anyone can read payments" on payments
 create policy "Anyone can add payments" on payments
   for insert to anon with check (true);
 
+create policy "Anyone can update payments" on payments
+  for update to anon using (true) with check (true);
+
 create policy "Anyone can delete payments" on payments
   for delete to anon using (true);
 

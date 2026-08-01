@@ -350,6 +350,7 @@ export default function App() {
 
   function startPress(member) {
     longPressFiredRef.current = false
+    if (paidMemberIds.has(member.id)) return
     pressTimerRef.current = setTimeout(() => {
       longPressFiredRef.current = true
       setActionMenuMember(member)
@@ -366,6 +367,12 @@ export default function App() {
   function handleRowClick(member) {
     if (longPressFiredRef.current) {
       longPressFiredRef.current = false
+      return
+    }
+    if (paidMemberIds.has(member.id)) {
+      if (window.confirm(`Mark ${member.name} as unpaid?`)) {
+        togglePaid(member)
+      }
       return
     }
     togglePaid(member)
@@ -629,7 +636,7 @@ export default function App() {
           </div>
 
           <p className="mb-4 text-center text-xs" style={{ color: COLORS.mutedLight }}>
-            Press and hold a member to edit or remove them
+            Press and hold an unpaid member to edit or remove them
           </p>
 
           {loading ? (
