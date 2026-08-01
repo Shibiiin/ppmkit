@@ -214,8 +214,14 @@ export default function App() {
 
   const filteredMembers = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return term ? members.filter((m) => m.name.toLowerCase().includes(term)) : members
-  }, [members, search])
+    const list = term ? members.filter((m) => m.name.toLowerCase().includes(term)) : members
+    return [...list].sort((a, b) => {
+      const aPaid = paidMemberIds.has(a.id)
+      const bPaid = paidMemberIds.has(b.id)
+      if (aPaid !== bPaid) return aPaid ? 1 : -1
+      return a.name.localeCompare(b.name)
+    })
+  }, [members, search, paidMemberIds])
 
   const monthTotal = useMemo(
     () => paymentsForMonth.reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
@@ -607,7 +613,7 @@ export default function App() {
                     onTouchCancel={cancelPress}
                     onContextMenu={(e) => e.preventDefault()}
                     onClick={() => handleRowClick(member)}
-                    className="flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-3 select-none"
+                    className="flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-3 select-none transition-colors duration-300"
                     style={{
                       backgroundColor: paid ? COLORS.greenTint : '#FFFFFF',
                       border: `1px solid ${paid ? COLORS.green : COLORS.border}`,
