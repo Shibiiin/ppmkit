@@ -585,6 +585,10 @@ export default function App() {
             />
           </div>
 
+          <p className="mb-4 text-center text-xs" style={{ color: COLORS.mutedLight }}>
+            Press and hold a member to edit or remove them
+          </p>
+
           {loading ? (
             <p className="text-sm" style={{ color: COLORS.mutedLight }}>
               Loading…
@@ -649,10 +653,6 @@ export default function App() {
           >
             Share on WhatsApp
           </button>
-
-          <p className="mt-3 text-center text-xs" style={{ color: COLORS.mutedLight }}>
-            Press and hold a member to edit or remove them
-          </p>
         </>
       ) : (
         <>
