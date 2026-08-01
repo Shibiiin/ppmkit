@@ -106,8 +106,12 @@ export default function App() {
   const [editingMember, setEditingMember] = useState(null)
   const [editAmountValue, setEditAmountValue] = useState('')
 
+  const [pullDistance, setPullDistance] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+
   const pressTimerRef = useRef(null)
   const longPressFiredRef = useRef(false)
+  const touchStartYRef = useRef(null)
 
   const monthDate = `${month}-01`
   const historyMonthDate = `${historyMonth}-01`
@@ -122,6 +126,54 @@ export default function App() {
   useEffect(() => {
     setAmountOverrides({})
   }, [month])
+
+  useEffect(() => {
+    function upsert(list, row) {
+      const exists = list.some((item) => item.id === row.id)
+      return exists ? list.map((item) => (item.id === row.id ? row : item)) : [...list, row]
+    }
+    function byName(a, b) {
+      return a.name.localeCompare(b.name)
+    }
+
+    const channel = supabase
+      .channel('kit-fund-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'members' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            setMembers((prev) => prev.filter((m) => m.id !== payload.old.id))
+            setRemovedMembers((prev) => prev.filter((m) => m.id !== payload.old.id))
+            return
+          }
+          const row = payload.new
+          if (row.active) {
+            setRemovedMembers((prev) => prev.filter((m) => m.id !== row.id))
+            setMembers((prev) => upsert(prev, row).sort(byName))
+          } else {
+            setMembers((prev) => prev.filter((m) => m.id !== row.id))
+            setRemovedMembers((prev) => upsert(prev, row).sort(byName))
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payments' },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            setAllPayments((prev) => prev.filter((p) => p.id !== payload.old.id))
+            return
+          }
+          setAllPayments((prev) => upsert(prev, payload.new))
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
 
   async function loadMembers() {
     const { data, error: fetchError } = await supabase
@@ -330,6 +382,33 @@ export default function App() {
     }
   }
 
+  function handleTouchStart(e) {
+    if (tab !== 'home' || refreshing || window.scrollY > 0) {
+      touchStartYRef.current = null
+      return
+    }
+    touchStartYRef.current = e.touches[0].clientY
+  }
+
+  function handleTouchMove(e) {
+    if (touchStartYRef.current == null) return
+    const delta = e.touches[0].clientY - touchStartYRef.current
+    if (delta > 0 && window.scrollY <= 0) {
+      setPullDistance(Math.min(delta * 0.5, 80))
+    }
+  }
+
+  async function handleTouchEnd() {
+    if (touchStartYRef.current == null) return
+    touchStartYRef.current = null
+    if (pullDistance > 50) {
+      setRefreshing(true)
+      await Promise.all([loadMembers(), loadRemovedMembers(), loadAllPayments()])
+      setRefreshing(false)
+    }
+    setPullDistance(0)
+  }
+
   function shareOnWhatsApp() {
     const paid = members.filter((m) => paidMemberIds.has(m.id))
     const lines = [
@@ -354,6 +433,9 @@ export default function App() {
     <div
       className="mx-auto flex min-h-screen max-w-2xl flex-col px-4 pb-24 pt-8"
       style={{ backgroundColor: COLORS.bg }}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       <header className="mb-5 flex flex-col gap-1">
         <h1 className="text-2xl font-bold" style={{ color: COLORS.dark }}>
@@ -387,6 +469,24 @@ export default function App() {
 
       {tab === 'home' ? (
         <>
+          {(pullDistance > 0 || refreshing) && (
+            <div
+              className="flex items-center justify-center overflow-hidden"
+              style={{
+                height: refreshing ? 32 : pullDistance,
+                transition: refreshing ? 'none' : 'height 0.15s ease-out',
+              }}
+            >
+              <span className="text-xs font-medium" style={{ color: COLORS.green }}>
+                {refreshing
+                  ? 'Refreshing…'
+                  : pullDistance > 50
+                    ? 'Release to refresh'
+                    : 'Pull to refresh'}
+              </span>
+            </div>
+          )}
+
           <div
             className="mb-4 rounded-2xl p-5"
             style={{ backgroundColor: COLORS.green, color: '#FFFFFF' }}

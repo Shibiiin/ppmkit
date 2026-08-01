@@ -51,3 +51,23 @@ create policy "Anyone can add payments" on payments
 
 create policy "Anyone can delete payments" on payments
   for delete to anon using (true);
+
+-- Realtime: lets every open tab/device see paid-status changes instantly.
+-- Wrapped in existence checks since ALTER PUBLICATION ... ADD TABLE errors
+-- if the table is already in the publication (e.g. re-running this file).
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'members'
+  ) then
+    alter publication supabase_realtime add table members;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and tablename = 'payments'
+  ) then
+    alter publication supabase_realtime add table payments;
+  end if;
+end $$;
