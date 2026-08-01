@@ -125,6 +125,7 @@ export default function App() {
   const [search, setSearch] = useState('')
   const [newMemberName, setNewMemberName] = useState('')
   const [newMemberAmount, setNewMemberAmount] = useState(String(MONTHLY_AMOUNT))
+  const [addingMember, setAddingMember] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionMenuMember, setActionMenuMember] = useState(null)
@@ -137,6 +138,7 @@ export default function App() {
   const pressTimerRef = useRef(null)
   const longPressFiredRef = useRef(false)
   const touchStartYRef = useRef(null)
+  const addingMemberRef = useRef(false)
 
   const monthDate = `${month}-01`
   const historyMonthDate = `${historyMonth}-01`
@@ -278,6 +280,16 @@ export default function App() {
     })
   }, [members, search, paidMemberIds])
 
+  const unpaidFilteredMembers = useMemo(
+    () => filteredMembers.filter((m) => !paidMemberIds.has(m.id)),
+    [filteredMembers, paidMemberIds]
+  )
+
+  const paidFilteredMembers = useMemo(
+    () => filteredMembers.filter((m) => paidMemberIds.has(m.id)),
+    [filteredMembers, paidMemberIds]
+  )
+
   const monthTotal = useMemo(
     () => paymentsForMonth.reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
     [paymentsForMonth]
@@ -335,8 +347,11 @@ export default function App() {
 
   async function addMember(e) {
     e.preventDefault()
+    if (addingMemberRef.current) return
     const name = newMemberName.trim()
     if (!name) return
+    addingMemberRef.current = true
+    setAddingMember(true)
     const amount = Number(newMemberAmount)
     const default_amount = Number.isFinite(amount) && amount >= 0 ? amount : MONTHLY_AMOUNT
     const { data, error: insertError } = await supabase
@@ -350,6 +365,8 @@ export default function App() {
       setNewMemberName('')
       setNewMemberAmount(String(MONTHLY_AMOUNT))
     }
+    addingMemberRef.current = false
+    setAddingMember(false)
   }
 
   async function removeMember(member) {
@@ -499,6 +516,44 @@ export default function App() {
     setPullDistance(0)
   }
 
+  function renderMemberRow(member) {
+    const paid = paidMemberIds.has(member.id)
+    const payment = paymentsForMonth.find((p) => p.member_id === member.id)
+    const override = overridesForMonth.find((o) => o.member_id === member.id)
+    const amount = payment?.amount ?? override?.amount ?? member.default_amount ?? MONTHLY_AMOUNT
+    return (
+      <li
+        key={member.id}
+        onMouseDown={() => startPress(member)}
+        onMouseUp={cancelPress}
+        onMouseLeave={cancelPress}
+        onTouchStart={() => startPress(member)}
+        onTouchEnd={cancelPress}
+        onTouchCancel={cancelPress}
+        onContextMenu={(e) => e.preventDefault()}
+        onClick={() => handleRowClick(member)}
+        className="flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-3 select-none transition-colors duration-300"
+        style={{
+          backgroundColor: paid ? COLORS.greenTint : '#FFFFFF',
+          border: `1px solid ${paid ? COLORS.green : COLORS.border}`,
+        }}
+      >
+        <span className="shrink-0" style={{ color: paid ? COLORS.green : COLORS.mutedLight }}>
+          {paid ? <CheckCircleIcon className="h-6 w-6" /> : <CircleIcon className="h-6 w-6" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium" style={{ color: COLORS.dark }}>
+            {member.name}
+          </p>
+          <p className="text-xs" style={{ color: paid ? COLORS.green : COLORS.muted }}>
+            {paid ? 'Paid' : 'Pending'} · {CURRENCY}
+            {amount}
+          </p>
+        </div>
+      </li>
+    )
+  }
+
   function shareOnWhatsApp() {
     const paid = members.filter((m) => paidMemberIds.has(m.id))
     const lines = [
@@ -643,8 +698,9 @@ export default function App() {
               </div>
               <button
                 type="submit"
+                disabled={addingMember}
                 aria-label="Add member"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-medium text-white transition-opacity hover:opacity-90"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 style={{ backgroundColor: COLORS.dark }}
               >
                 +
@@ -686,50 +742,34 @@ export default function App() {
                 : 'No members match your search.'}
             </p>
           ) : (
-            <ul className="mb-4 flex flex-col gap-2">
-              {filteredMembers.map((member) => {
-                const paid = paidMemberIds.has(member.id)
-                const payment = paymentsForMonth.find((p) => p.member_id === member.id)
-                const override = overridesForMonth.find((o) => o.member_id === member.id)
-                const amount =
-                  payment?.amount ?? override?.amount ?? member.default_amount ?? MONTHLY_AMOUNT
-                return (
-                  <li
-                    key={member.id}
-                    onMouseDown={() => startPress(member)}
-                    onMouseUp={cancelPress}
-                    onMouseLeave={cancelPress}
-                    onTouchStart={() => startPress(member)}
-                    onTouchEnd={cancelPress}
-                    onTouchCancel={cancelPress}
-                    onContextMenu={(e) => e.preventDefault()}
-                    onClick={() => handleRowClick(member)}
-                    className="flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-3 select-none transition-colors duration-300"
-                    style={{
-                      backgroundColor: paid ? COLORS.greenTint : '#FFFFFF',
-                      border: `1px solid ${paid ? COLORS.green : COLORS.border}`,
-                    }}
+            <>
+              {unpaidFilteredMembers.length > 0 && (
+                <>
+                  <p
+                    className="mb-2 text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: COLORS.muted }}
                   >
-                    <span className="shrink-0" style={{ color: paid ? COLORS.green : COLORS.mutedLight }}>
-                      {paid ? (
-                        <CheckCircleIcon className="h-6 w-6" />
-                      ) : (
-                        <CircleIcon className="h-6 w-6" />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium" style={{ color: COLORS.dark }}>
-                        {member.name}
-                      </p>
-                      <p className="text-xs" style={{ color: paid ? COLORS.green : COLORS.muted }}>
-                        {paid ? 'Paid' : 'Pending'} · {CURRENCY}
-                        {amount}
-                      </p>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
+                    Unpaid ({unpaidFilteredMembers.length})
+                  </p>
+                  <ul className="mb-4 flex flex-col gap-2">
+                    {unpaidFilteredMembers.map(renderMemberRow)}
+                  </ul>
+                </>
+              )}
+              {paidFilteredMembers.length > 0 && (
+                <>
+                  <p
+                    className="mb-2 text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: COLORS.green }}
+                  >
+                    Paid ({paidFilteredMembers.length})
+                  </p>
+                  <ul className="mb-4 flex flex-col gap-2">
+                    {paidFilteredMembers.map(renderMemberRow)}
+                  </ul>
+                </>
+              )}
+            </>
           )}
 
           <button
