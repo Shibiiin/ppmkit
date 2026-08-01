@@ -100,17 +100,20 @@ Auth and tighten the RLS policies in `supabase-schema.sql` to check
 
 The app is deployed to **GitHub Pages** via GitHub Actions
 (`.github/workflows/deploy.yml`): every push to `main` runs `npm ci` and
-`npm run build` with `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
-injected from repo secrets (Settings → Secrets and variables → Actions),
-then deploys `dist/` via `actions/deploy-pages`. Pages source is set to
-"GitHub Actions" (Settings → Pages), not a branch.
+`npm run build` with `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
+`VITE_MONTHLY_AMOUNT`, and `VITE_CURRENCY_SYMBOL` injected from repo
+secrets (Settings → Secrets and variables → Actions) — all four are
+required, since a missing one silently falls back to an empty/zero value
+at build time rather than erroring — then deploys `dist/` via
+`actions/deploy-pages`. Pages source is set to "GitHub Actions" (Settings
+→ Pages), not a branch.
 
 `vite.config.js`'s `base` switches automatically depending on where it's
-built: `/ppmcharity/` when `GITHUB_PAGES=true` (set by the workflow, since
+built: `/ppmkit/` when `GITHUB_PAGES=true` (set by the workflow, since
 Pages serves from that subpath), otherwise `/` (for local dev or any
 root-domain host like Netlify).
 
-Live: **https://shibiiin.github.io/ppmcharity/**
+Live: **https://shibiiin.github.io/ppmkit/**
 
 ### Alternative: Netlify
 
