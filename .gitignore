@@ -15,6 +15,9 @@ dist-ssr
 # environment variables (contains real Supabase credentials)
 .env
 
+# Supabase CLI local cache/link state
+supabase/.temp
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
