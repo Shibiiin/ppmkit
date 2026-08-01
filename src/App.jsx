@@ -88,7 +88,32 @@ function HistoryIcon(props) {
   )
 }
 
+function SplashScreen({ leaving }) {
+  return (
+    <div
+      className={`splash-screen fixed inset-0 z-50 flex flex-col items-center justify-center gap-4${
+        leaving ? ' splash-leaving' : ''
+      }`}
+      style={{ backgroundColor: COLORS.bg }}
+    >
+      <img
+        src="/icon-192.png"
+        alt=""
+        className="splash-icon h-20 w-20 rounded-2xl shadow-sm"
+      />
+      <p
+        className="splash-text text-2xl font-bold tracking-wide"
+        style={{ color: COLORS.dark }}
+      >
+        PPM KIT
+      </p>
+    </div>
+  )
+}
+
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true)
+  const [splashLeaving, setSplashLeaving] = useState(false)
   const [tab, setTab] = useState('home')
   const [showRemoved, setShowRemoved] = useState(false)
   const [members, setMembers] = useState([])
@@ -122,6 +147,15 @@ export default function App() {
     loadRemovedMembers()
     loadAllPayments()
     loadAllOverrides()
+  }, [])
+
+  useEffect(() => {
+    const leaveTimer = setTimeout(() => setSplashLeaving(true), 1700)
+    const hideTimer = setTimeout(() => setShowSplash(false), 2000)
+    return () => {
+      clearTimeout(leaveTimer)
+      clearTimeout(hideTimer)
+    }
   }, [])
 
   useEffect(() => {
@@ -486,14 +520,16 @@ export default function App() {
   }
 
   return (
-    <div
-      className="mx-auto flex min-h-screen max-w-2xl flex-col px-4 pb-24 pt-8"
-      style={{ backgroundColor: COLORS.bg }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
-      <header className="mb-5 flex flex-col gap-1">
+    <>
+      {showSplash && <SplashScreen leaving={splashLeaving} />}
+      <div
+        className="mx-auto flex min-h-screen max-w-2xl flex-col px-4 pb-24 pt-8"
+        style={{ backgroundColor: COLORS.bg }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <header className="mb-5 flex flex-col gap-1">
         <h1 className="text-2xl font-bold" style={{ color: COLORS.dark }}>
           കിറ്റ് ഫണ്ട്
         </h1>
@@ -524,7 +560,7 @@ export default function App() {
       )}
 
       {tab === 'home' ? (
-        <>
+        <div key="home" className="page-enter">
           {(pullDistance > 0 || refreshing) && (
             <div
               className="flex items-center justify-center overflow-hidden"
@@ -704,9 +740,9 @@ export default function App() {
           >
             Share on WhatsApp
           </button>
-        </>
+        </div>
       ) : (
-        <>
+        <div key="history" className="page-enter">
           <div className="mb-4 grid grid-cols-3 gap-2">
             <button
               type="button"
@@ -848,7 +884,7 @@ export default function App() {
               )}
             </div>
           )}
-        </>
+        </div>
       )}
 
       <nav
@@ -966,6 +1002,7 @@ export default function App() {
           </form>
         </div>
       )}
-    </div>
+      </div>
+    </>
   )
 }

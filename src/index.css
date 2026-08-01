@@ -7,3 +7,56 @@ body {
   min-height: 100svh;
   background: #fbf7ee;
 }
+
+@keyframes splash-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes splash-text-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes page-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.splash-icon {
+  animation: splash-icon-in 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.splash-text {
+  animation: splash-text-in 500ms ease-out 150ms both;
+}
+
+.splash-screen {
+  transition: opacity 300ms ease-in;
+}
+
+.splash-screen.splash-leaving {
+  opacity: 0;
+}
+
+.page-enter {
+  animation: page-fade-in 250ms ease-out both;
+}
