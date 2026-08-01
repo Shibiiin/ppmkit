@@ -1,0 +1,7 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  VITE_MONTHLY_AMOUNT = "100"
+  VITE_CURRENCY_SYMBOL = "₹"
