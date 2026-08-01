@@ -110,10 +110,20 @@ at build time rather than erroring — then deploys `dist/` via
 
 `vite.config.js`'s `base` switches automatically depending on where it's
 built: `/ppmkit/` when `GITHUB_PAGES=true` (set by the workflow, since
-Pages serves from that subpath), otherwise `/` (for local dev or any
-root-domain host like Netlify).
+Pages serves from that subpath), otherwise `/` (for local dev, Vercel, or
+any root-domain host like Netlify).
 
 Live: **https://shibiiin.github.io/ppmkit/**
+
+### Alternative: Vercel
+
+Also deployed to Vercel, linked via `npx vercel link` with Git integration
+connected to this repo — every push to `main` auto-deploys to Production,
+other branches/PRs get Preview deployments. All four env vars
+(`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_MONTHLY_AMOUNT`,
+`VITE_CURRENCY_SYMBOL`) are set for Production, Preview, and Development
+via `vercel env add` — all four matter, since a missing one silently
+falls back to an empty/zero value at build time rather than erroring.
 
 ### Alternative: Netlify
 
