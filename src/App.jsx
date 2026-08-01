@@ -134,11 +134,15 @@ export default function App() {
 
   const [pullDistance, setPullDistance] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
+  const [toast, setToast] = useState(null)
+  const [toastLeaving, setToastLeaving] = useState(false)
 
   const pressTimerRef = useRef(null)
   const longPressFiredRef = useRef(false)
   const touchStartYRef = useRef(null)
   const addingMemberRef = useRef(false)
+  const toastTimerRef = useRef(null)
+  const toastHideTimerRef = useRef(null)
 
   const monthDate = `${month}-01`
   const historyMonthDate = `${historyMonth}-01`
@@ -322,6 +326,15 @@ export default function App() {
     [historyMonthPayments]
   )
 
+  function showToast(message) {
+    clearTimeout(toastTimerRef.current)
+    clearTimeout(toastHideTimerRef.current)
+    setToastLeaving(false)
+    setToast(message)
+    toastTimerRef.current = setTimeout(() => setToastLeaving(true), 2000)
+    toastHideTimerRef.current = setTimeout(() => setToast(null), 2200)
+  }
+
   async function togglePaid(member) {
     setError('')
     const existing = paymentsForMonth.find((p) => p.member_id === member.id)
@@ -341,7 +354,10 @@ export default function App() {
         .select()
         .single()
       if (insertError) setError(insertError.message)
-      else setAllPayments((prev) => [...prev, data])
+      else {
+        setAllPayments((prev) => [...prev, data])
+        showToast(`${member.name} marked as paid — ${CURRENCY}${amount}`)
+      }
     }
   }
 
@@ -948,6 +964,18 @@ export default function App() {
           History
         </button>
       </nav>
+
+      {toast && (
+        <div
+          className={`toast fixed bottom-20 left-1/2 z-40 flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-white shadow-lg${
+            toastLeaving ? ' toast-leaving' : ''
+          }`}
+          style={{ backgroundColor: COLORS.green }}
+        >
+          <CheckCircleIcon className="h-4 w-4 shrink-0" />
+          {toast}
+        </div>
+      )}
 
       {actionMenuMember && (
         <div
