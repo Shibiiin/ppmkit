@@ -90,6 +90,7 @@ function HistoryIcon(props) {
 
 export default function App() {
   const [tab, setTab] = useState('home')
+  const [showRemoved, setShowRemoved] = useState(false)
   const [members, setMembers] = useState([])
   const [removedMembers, setRemovedMembers] = useState([])
   const [allPayments, setAllPayments] = useState([])
@@ -504,9 +505,13 @@ export default function App() {
       ) : (
         <>
           <div className="mb-4 grid grid-cols-3 gap-2">
-            <div
-              className="rounded-2xl bg-white p-3"
-              style={{ border: `1px solid ${COLORS.border}` }}
+            <button
+              type="button"
+              onClick={() => setShowRemoved((v) => !v)}
+              aria-pressed={showRemoved}
+              aria-label="Toggle removed members"
+              className="cursor-pointer rounded-2xl bg-white p-3 text-left transition-transform active:scale-95"
+              style={{ border: `1px solid ${showRemoved ? COLORS.green : COLORS.border}` }}
             >
               <p
                 className="text-[10px] font-medium uppercase leading-tight tracking-wide"
@@ -517,7 +522,7 @@ export default function App() {
               <p className="mt-1 text-lg font-bold sm:text-2xl" style={{ color: COLORS.dark }}>
                 {members.length}
               </p>
-            </div>
+            </button>
             <div
               className="rounded-2xl bg-white p-3"
               style={{ border: `1px solid ${COLORS.border}` }}
@@ -601,7 +606,7 @@ export default function App() {
             )}
           </ul>
 
-          {removedMembers.length > 0 && (
+          {showRemoved && (
             <div className="mt-6">
               <p
                 className="mb-2 text-xs font-medium uppercase tracking-wide"
@@ -609,26 +614,35 @@ export default function App() {
               >
                 Removed members
               </p>
-              <ul className="flex flex-col gap-2">
-                {removedMembers.map((member) => (
-                  <li
-                    key={member.id}
-                    className="flex items-center gap-3 rounded-2xl px-3 py-3"
-                    style={{ backgroundColor: '#FFFFFF', border: `1px solid ${COLORS.border}` }}
-                  >
-                    <span className="flex-1 truncate text-sm font-medium" style={{ color: COLORS.mutedLight }}>
-                      {member.name}
-                    </span>
-                    <button
-                      onClick={() => restoreMember(member)}
-                      className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-opacity hover:opacity-90"
-                      style={{ backgroundColor: COLORS.greenTint, color: COLORS.green }}
+              {removedMembers.length === 0 ? (
+                <p
+                  className="rounded-2xl bg-white px-4 py-3 text-sm"
+                  style={{ border: `1px solid ${COLORS.border}`, color: COLORS.mutedLight }}
+                >
+                  No removed members.
+                </p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {removedMembers.map((member) => (
+                    <li
+                      key={member.id}
+                      className="flex items-center gap-3 rounded-2xl px-3 py-3"
+                      style={{ backgroundColor: '#FFFFFF', border: `1px solid ${COLORS.border}` }}
                     >
-                      Restore
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                      <span className="flex-1 truncate text-sm font-medium" style={{ color: COLORS.mutedLight }}>
+                        {member.name}
+                      </span>
+                      <button
+                        onClick={() => restoreMember(member)}
+                        className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-opacity hover:opacity-90"
+                        style={{ backgroundColor: COLORS.greenTint, color: COLORS.green }}
+                      >
+                        Restore
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </>
