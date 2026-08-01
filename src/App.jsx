@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabaseClient'
 
 const MONTHLY_AMOUNT = Number(import.meta.env.VITE_MONTHLY_AMOUNT) || 0
 const CURRENCY = import.meta.env.VITE_CURRENCY_SYMBOL || '₹'
+const LONG_PRESS_MS = 500
 
 const COLORS = {
   bg: '#FBF7EE',
@@ -16,6 +17,10 @@ const COLORS = {
   error: '#C0392B',
   errorBg: '#FBEAE8',
 }
+
+const inputClass =
+  'w-full bg-white px-3 py-2 text-sm outline-none transition-shadow ' +
+  'focus:ring-2 focus:ring-[#2E9E6B]/40 focus:border-[#2E9E6B]'
 
 function monthLabel(monthStr) {
   const [year, month] = monthStr.split('-').map(Number)
@@ -64,16 +69,6 @@ function CircleIcon(props) {
   )
 }
 
-function TrashIcon(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-      <path d="M4 7h16" strokeLinecap="round" />
-      <path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
 function HomeIcon(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
@@ -101,8 +96,12 @@ export default function App() {
   const [historyMonth, setHistoryMonth] = useState(currentMonthStr())
   const [search, setSearch] = useState('')
   const [newMemberName, setNewMemberName] = useState('')
+  const [newMemberAmount, setNewMemberAmount] = useState(String(MONTHLY_AMOUNT))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  const pressTimerRef = useRef(null)
+  const longPressFiredRef = useRef(false)
 
   const monthDate = `${month}-01`
   const historyMonthDate = `${historyMonth}-01`
@@ -188,9 +187,10 @@ export default function App() {
       if (deleteError) setError(deleteError.message)
       else setAllPayments((prev) => prev.filter((p) => p.id !== existing.id))
     } else {
+      const amount = member.default_amount ?? MONTHLY_AMOUNT
       const { data, error: insertError } = await supabase
         .from('payments')
-        .insert({ member_id: member.id, month: monthDate, amount: MONTHLY_AMOUNT })
+        .insert({ member_id: member.id, month: monthDate, amount })
         .select()
         .single()
       if (insertError) setError(insertError.message)
@@ -202,15 +202,18 @@ export default function App() {
     e.preventDefault()
     const name = newMemberName.trim()
     if (!name) return
+    const amount = Number(newMemberAmount)
+    const default_amount = Number.isFinite(amount) && amount >= 0 ? amount : MONTHLY_AMOUNT
     const { data, error: insertError } = await supabase
       .from('members')
-      .insert({ name })
+      .insert({ name, default_amount })
       .select()
       .single()
     if (insertError) setError(insertError.message)
     else {
       setMembers((prev) => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
       setNewMemberName('')
+      setNewMemberAmount(String(MONTHLY_AMOUNT))
     }
   }
 
@@ -224,18 +227,46 @@ export default function App() {
     else setMembers((prev) => prev.filter((m) => m.id !== member.id))
   }
 
+  function startPress(member) {
+    longPressFiredRef.current = false
+    pressTimerRef.current = setTimeout(() => {
+      longPressFiredRef.current = true
+      if (window.confirm(`Remove ${member.name} from the list?`)) {
+        removeMember(member)
+      }
+    }, LONG_PRESS_MS)
+  }
+
+  function cancelPress() {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current)
+      pressTimerRef.current = null
+    }
+  }
+
+  function handleRowClick(member) {
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false
+      return
+    }
+    togglePaid(member)
+  }
+
   function shareOnWhatsApp() {
     const paid = members.filter((m) => paidMemberIds.has(m.id))
-    const total = paid.length * MONTHLY_AMOUNT
     const lines = [
       `*കിറ്റ് ഫണ്ട് — ${monthLabel(month)}*`,
       '',
       `✅ Paid (${paid.length}/${members.length})`,
       ...(paid.length
-        ? paid.map((m) => `- ${m.name}: ${CURRENCY}${MONTHLY_AMOUNT}`)
+        ? paid.map((m) => {
+            const payment = paymentsForMonth.find((p) => p.member_id === m.id)
+            const amount = payment?.amount ?? m.default_amount ?? MONTHLY_AMOUNT
+            return `- ${m.name}: ${CURRENCY}${amount}`
+          })
         : ['- none yet']),
       '',
-      `Total collected: ${CURRENCY}${total}`,
+      `Total collected: ${CURRENCY}${monthTotal}`,
     ]
     const text = encodeURIComponent(lines.join('\n'))
     window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer')
@@ -256,7 +287,7 @@ export default function App() {
               type="month"
               value={month}
               onChange={(e) => setMonth(e.target.value)}
-              className="cursor-pointer border-none bg-transparent p-0 text-sm outline-none"
+              className="cursor-pointer rounded-lg border-none bg-transparent p-0 text-sm outline-none focus:ring-2 focus:ring-[#2E9E6B]/40"
               style={{ color: COLORS.mutedLight }}
             />
           </label>
@@ -315,21 +346,43 @@ export default function App() {
                 value={newMemberName}
                 onChange={(e) => setNewMemberName(e.target.value)}
                 placeholder="Add a member"
-                className="flex-1 rounded-xl border-none bg-transparent px-2 py-1.5 text-sm outline-none"
-                style={{ color: COLORS.dark }}
+                className={`flex-1 rounded-xl ${inputClass}`}
+                style={{ color: COLORS.dark, border: `1px solid ${COLORS.border}` }}
               />
+              <div className="relative w-24 shrink-0">
+                <span
+                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm"
+                  style={{ color: COLORS.mutedLight }}
+                >
+                  {CURRENCY}
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={newMemberAmount}
+                  onChange={(e) => setNewMemberAmount(e.target.value)}
+                  aria-label="Amount"
+                  className={`rounded-xl ${inputClass}`}
+                  style={{
+                    color: COLORS.dark,
+                    border: `1px solid ${COLORS.border}`,
+                    paddingLeft: '1.5rem',
+                  }}
+                />
+              </div>
               <button
                 type="submit"
                 aria-label="Add member"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-medium text-white"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-medium text-white transition-opacity hover:opacity-90"
                 style={{ backgroundColor: COLORS.dark }}
               >
                 +
               </button>
             </form>
             <p className="mt-2 px-2 text-xs" style={{ color: COLORS.muted }}>
-              {CURRENCY}
-              {MONTHLY_AMOUNT} per member
+              Defaults to {CURRENCY}
+              {MONTHLY_AMOUNT} per member — editable above
             </p>
           </div>
 
@@ -343,7 +396,7 @@ export default function App() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search members…"
-              className="w-full rounded-full bg-white py-2.5 pl-10 pr-4 text-sm outline-none"
+              className={`rounded-full pl-10 ${inputClass}`}
               style={{ border: `1px solid ${COLORS.border}`, color: COLORS.dark }}
             />
           </div>
@@ -362,43 +415,41 @@ export default function App() {
             <ul className="mb-4 flex flex-col gap-2">
               {filteredMembers.map((member) => {
                 const paid = paidMemberIds.has(member.id)
+                const payment = paymentsForMonth.find((p) => p.member_id === member.id)
+                const amount = payment?.amount ?? member.default_amount ?? MONTHLY_AMOUNT
                 return (
                   <li
                     key={member.id}
-                    className="flex items-center gap-3 rounded-2xl px-3 py-3"
+                    onMouseDown={() => startPress(member)}
+                    onMouseUp={cancelPress}
+                    onMouseLeave={cancelPress}
+                    onTouchStart={() => startPress(member)}
+                    onTouchEnd={cancelPress}
+                    onTouchCancel={cancelPress}
+                    onContextMenu={(e) => e.preventDefault()}
+                    onClick={() => handleRowClick(member)}
+                    className="flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-3 select-none"
                     style={{
                       backgroundColor: paid ? COLORS.greenTint : '#FFFFFF',
                       border: `1px solid ${paid ? COLORS.green : COLORS.border}`,
                     }}
                   >
-                    <button
-                      onClick={() => togglePaid(member)}
-                      aria-label={paid ? 'Mark as unpaid' : 'Mark as paid'}
-                      className="shrink-0"
-                      style={{ color: paid ? COLORS.green : COLORS.mutedLight }}
-                    >
+                    <span className="shrink-0" style={{ color: paid ? COLORS.green : COLORS.mutedLight }}>
                       {paid ? (
                         <CheckCircleIcon className="h-6 w-6" />
                       ) : (
                         <CircleIcon className="h-6 w-6" />
                       )}
-                    </button>
+                    </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium" style={{ color: COLORS.dark }}>
                         {member.name}
                       </p>
                       <p className="text-xs" style={{ color: paid ? COLORS.green : COLORS.muted }}>
-                        {paid ? 'Paid' : 'Pending'}
+                        {paid ? 'Paid' : 'Pending'} · {CURRENCY}
+                        {amount}
                       </p>
                     </div>
-                    <button
-                      onClick={() => removeMember(member)}
-                      aria-label={`Remove ${member.name}`}
-                      className="shrink-0"
-                      style={{ color: COLORS.mutedLight }}
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
                   </li>
                 )
               })}
@@ -408,46 +459,59 @@ export default function App() {
           <button
             onClick={shareOnWhatsApp}
             disabled={!members.length}
-            className="w-full rounded-full py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-full py-3 text-sm font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             style={{ backgroundColor: COLORS.gold, color: COLORS.dark }}
           >
             Share on WhatsApp
           </button>
+
+          <p className="mt-3 text-center text-xs" style={{ color: COLORS.mutedLight }}>
+            Press and hold a member to remove them
+          </p>
         </>
       ) : (
         <>
-          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="mb-4 grid grid-cols-3 gap-2">
             <div
-              className="rounded-2xl bg-white p-4"
+              className="rounded-2xl bg-white p-3"
               style={{ border: `1px solid ${COLORS.border}` }}
             >
-              <p className="text-xs font-medium uppercase tracking-wide" style={{ color: COLORS.muted }}>
-                Total members
+              <p
+                className="text-[10px] font-medium uppercase leading-tight tracking-wide"
+                style={{ color: COLORS.muted }}
+              >
+                Members
               </p>
-              <p className="mt-1 text-2xl font-bold" style={{ color: COLORS.dark }}>
+              <p className="mt-1 text-lg font-bold sm:text-2xl" style={{ color: COLORS.dark }}>
                 {members.length}
               </p>
             </div>
             <div
-              className="rounded-2xl bg-white p-4"
+              className="rounded-2xl bg-white p-3"
               style={{ border: `1px solid ${COLORS.border}` }}
             >
-              <p className="text-xs font-medium uppercase tracking-wide" style={{ color: COLORS.muted }}>
-                Collected to date
+              <p
+                className="text-[10px] font-medium uppercase leading-tight tracking-wide"
+                style={{ color: COLORS.muted }}
+              >
+                To date
               </p>
-              <p className="mt-1 text-2xl font-bold" style={{ color: COLORS.green }}>
+              <p className="mt-1 text-lg font-bold sm:text-2xl" style={{ color: COLORS.green }}>
                 {CURRENCY}
                 {totalCollected}
               </p>
             </div>
             <div
-              className="rounded-2xl bg-white p-4"
+              className="rounded-2xl bg-white p-3"
               style={{ border: `1px solid ${COLORS.border}` }}
             >
-              <p className="text-xs font-medium uppercase tracking-wide" style={{ color: COLORS.muted }}>
-                Last month's total
+              <p
+                className="text-[10px] font-medium uppercase leading-tight tracking-wide"
+                style={{ color: COLORS.muted }}
+              >
+                Last month
               </p>
-              <p className="mt-1 text-2xl font-bold" style={{ color: COLORS.green }}>
+              <p className="mt-1 text-lg font-bold sm:text-2xl" style={{ color: COLORS.green }}>
                 {CURRENCY}
                 {lastMonthTotal}
               </p>
@@ -464,7 +528,7 @@ export default function App() {
                 type="month"
                 value={historyMonth}
                 onChange={(e) => setHistoryMonth(e.target.value)}
-                className="rounded-lg border-none bg-transparent px-1 py-1 text-sm outline-none"
+                className="rounded-lg border-none bg-transparent px-1 py-1 text-sm outline-none focus:ring-2 focus:ring-[#2E9E6B]/40"
                 style={{ color: COLORS.dark }}
               />
             </label>

@@ -5,8 +5,13 @@ create table if not exists members (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   active boolean not null default true,
+  default_amount numeric(10, 2),
   created_at timestamptz not null default now()
 );
+
+-- Safe to re-run against a database that already has the members table
+-- from before default_amount existed.
+alter table members add column if not exists default_amount numeric(10, 2);
 
 create table if not exists payments (
   id uuid primary key default gen_random_uuid(),

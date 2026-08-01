@@ -41,10 +41,11 @@ Supabase.
    `.env` is gitignored and should never be committed — it holds real
    credentials. Only `.env.example` (with placeholder values) is tracked.
 
-   `VITE_MONTHLY_AMOUNT` is the fixed due amount recorded whenever a member
-   is marked paid (every member pays the same amount each month).
-   `VITE_CURRENCY_SYMBOL` is just a display symbol used in the UI and the
-   WhatsApp report — change it to match your currency.
+   `VITE_MONTHLY_AMOUNT` pre-fills the amount field when adding a new
+   member — each member's due amount is editable at add-time and stored
+   per-member (`members.default_amount`), so members can pay different
+   amounts. `VITE_CURRENCY_SYMBOL` is just a display symbol used in the UI
+   and the WhatsApp report — change it to match your currency.
 
 4. Start the dev server:
 
@@ -58,9 +59,11 @@ The app has two tabs, switched via the bottom nav bar:
 
 **Home**
 - Search members by name.
-- Add members with the "Add" form.
-- Click a member's row to toggle them paid/unpaid for the selected month
-  (each paid record is stamped with `VITE_MONTHLY_AMOUNT`).
+- Add members with name + amount (amount defaults to `VITE_MONTHLY_AMOUNT`
+  but is editable per member).
+- Tap a member's row to toggle them paid/unpaid for the selected month
+  (stamped with that member's amount). Press and hold a row (~500ms, mouse
+  or touch) to remove that member, with a confirmation prompt first.
 - "Share on WhatsApp" builds a plain-text summary of only the members who've
   paid for the selected month, with each amount and a total, and opens
   WhatsApp's share link so you can send it to the group.
