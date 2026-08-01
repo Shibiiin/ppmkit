@@ -101,6 +101,10 @@ export default function App() {
   const [newMemberAmount, setNewMemberAmount] = useState(String(MONTHLY_AMOUNT))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [amountOverrides, setAmountOverrides] = useState({})
+  const [actionMenuMember, setActionMenuMember] = useState(null)
+  const [editingMember, setEditingMember] = useState(null)
+  const [editAmountValue, setEditAmountValue] = useState('')
 
   const pressTimerRef = useRef(null)
   const longPressFiredRef = useRef(false)
@@ -114,6 +118,10 @@ export default function App() {
     loadRemovedMembers()
     loadAllPayments()
   }, [])
+
+  useEffect(() => {
+    setAmountOverrides({})
+  }, [month])
 
   async function loadMembers() {
     const { data, error: fetchError } = await supabase
@@ -200,7 +208,7 @@ export default function App() {
       if (deleteError) setError(deleteError.message)
       else setAllPayments((prev) => prev.filter((p) => p.id !== existing.id))
     } else {
-      const amount = member.default_amount ?? MONTHLY_AMOUNT
+      const amount = amountOverrides[member.id] ?? member.default_amount ?? MONTHLY_AMOUNT
       const { data, error: insertError } = await supabase
         .from('payments')
         .insert({ member_id: member.id, month: monthDate, amount })
@@ -264,9 +272,7 @@ export default function App() {
     longPressFiredRef.current = false
     pressTimerRef.current = setTimeout(() => {
       longPressFiredRef.current = true
-      if (window.confirm(`Remove ${member.name} from the list?`)) {
-        removeMember(member)
-      }
+      setActionMenuMember(member)
     }, LONG_PRESS_MS)
   }
 
@@ -283,6 +289,45 @@ export default function App() {
       return
     }
     togglePaid(member)
+  }
+
+  function openEdit(member) {
+    const existing = paymentsForMonth.find((p) => p.member_id === member.id)
+    const currentAmount =
+      existing?.amount ?? amountOverrides[member.id] ?? member.default_amount ?? MONTHLY_AMOUNT
+    setEditAmountValue(String(currentAmount))
+    setEditingMember(member)
+    setActionMenuMember(null)
+  }
+
+  async function saveEditedAmount(e) {
+    e.preventDefault()
+    if (!editingMember) return
+    const amount = Number(editAmountValue)
+    if (!Number.isFinite(amount) || amount < 0) return
+
+    const existing = paymentsForMonth.find((p) => p.member_id === editingMember.id)
+    if (existing) {
+      const { error: updateError } = await supabase
+        .from('payments')
+        .update({ amount })
+        .eq('id', existing.id)
+      if (updateError) setError(updateError.message)
+      else
+        setAllPayments((prev) =>
+          prev.map((p) => (p.id === existing.id ? { ...p, amount } : p))
+        )
+    } else {
+      setAmountOverrides((prev) => ({ ...prev, [editingMember.id]: amount }))
+    }
+    setEditingMember(null)
+  }
+
+  function confirmDeleteFromMenu(member) {
+    setActionMenuMember(null)
+    if (window.confirm(`Remove ${member.name} from the list?`)) {
+      removeMember(member)
+    }
   }
 
   function shareOnWhatsApp() {
@@ -449,7 +494,8 @@ export default function App() {
               {filteredMembers.map((member) => {
                 const paid = paidMemberIds.has(member.id)
                 const payment = paymentsForMonth.find((p) => p.member_id === member.id)
-                const amount = payment?.amount ?? member.default_amount ?? MONTHLY_AMOUNT
+                const amount =
+                  payment?.amount ?? amountOverrides[member.id] ?? member.default_amount ?? MONTHLY_AMOUNT
                 return (
                   <li
                     key={member.id}
@@ -499,7 +545,7 @@ export default function App() {
           </button>
 
           <p className="mt-3 text-center text-xs" style={{ color: COLORS.mutedLight }}>
-            Press and hold a member to remove them
+            Press and hold a member to edit or remove them
           </p>
         </>
       ) : (
@@ -669,6 +715,100 @@ export default function App() {
           History
         </button>
       </nav>
+
+      {actionMenuMember && (
+        <div
+          className="fixed inset-0 z-10 flex items-end justify-center bg-black/30 sm:items-center"
+          onClick={() => setActionMenuMember(null)}
+        >
+          <div
+            className="mb-24 w-full max-w-xs rounded-2xl bg-white p-4 sm:mb-0"
+            style={{ border: `1px solid ${COLORS.border}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-3 truncate text-sm font-semibold" style={{ color: COLORS.dark }}>
+              {actionMenuMember.name}
+            </p>
+            <button
+              onClick={() => openEdit(actionMenuMember)}
+              className="mb-2 w-full rounded-xl py-2.5 text-sm font-medium"
+              style={{ backgroundColor: COLORS.greenTint, color: COLORS.green }}
+            >
+              Edit amount
+            </button>
+            <button
+              onClick={() => confirmDeleteFromMenu(actionMenuMember)}
+              className="mb-2 w-full rounded-xl py-2.5 text-sm font-medium"
+              style={{ backgroundColor: COLORS.errorBg, color: COLORS.error }}
+            >
+              Delete member
+            </button>
+            <button
+              onClick={() => setActionMenuMember(null)}
+              className="w-full rounded-xl py-2.5 text-sm font-medium"
+              style={{ color: COLORS.muted }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editingMember && (
+        <div
+          className="fixed inset-0 z-10 flex items-end justify-center bg-black/30 sm:items-center"
+          onClick={() => setEditingMember(null)}
+        >
+          <form
+            onSubmit={saveEditedAmount}
+            className="mb-24 w-full max-w-xs rounded-2xl bg-white p-4 sm:mb-0"
+            style={{ border: `1px solid ${COLORS.border}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="mb-1 truncate text-sm font-semibold" style={{ color: COLORS.dark }}>
+              {editingMember.name}
+            </p>
+            <p className="mb-3 text-xs" style={{ color: COLORS.muted }}>
+              Amount for {monthLabel(month)} only — doesn't change their default amount
+            </p>
+            <div className="relative mb-3">
+              <span
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm"
+                style={{ color: COLORS.mutedLight }}
+              >
+                {CURRENCY}
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                autoFocus
+                value={editAmountValue}
+                onChange={(e) => setEditAmountValue(e.target.value)}
+                className={`rounded-xl ${inputClass}`}
+                style={{ color: COLORS.dark, border: `1px solid ${COLORS.border}`, paddingLeft: '1.75rem' }}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingMember(null)}
+                className="flex-1 rounded-xl py-2.5 text-sm font-medium"
+                style={{ color: COLORS.muted, border: `1px solid ${COLORS.border}` }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white"
+                style={{ backgroundColor: COLORS.green }}
+              >
+                Save
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
 }
