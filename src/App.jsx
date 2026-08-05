@@ -3,6 +3,8 @@ import { supabase } from './supabaseClient'
 
 const MONTHLY_AMOUNT = Number(import.meta.env.VITE_MONTHLY_AMOUNT) || 0
 const CURRENCY = import.meta.env.VITE_CURRENCY_SYMBOL || '₹'
+const ADMIN_CODE = import.meta.env.VITE_ADMIN_CODE
+const ROLE_STORAGE_KEY = 'ppmkit_role'
 const LONG_PRESS_MS = 500
 
 const COLORS = {
@@ -111,9 +113,78 @@ function SplashScreen({ leaving }) {
   )
 }
 
+function GateScreen({ onVerify, onViewOnly }) {
+  const [code, setCode] = useState('')
+  const [error, setError] = useState('')
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (code === ADMIN_CODE) {
+      setError('')
+      onVerify()
+    } else {
+      setError('Incorrect code — try again.')
+    }
+  }
+
+  return (
+    <div
+      className="flex min-h-screen flex-col items-center justify-center gap-6 px-6"
+      style={{ backgroundColor: COLORS.bg }}
+    >
+      <div className="flex flex-col items-center gap-2">
+        <img src="/icon-192.png" alt="" className="h-16 w-16 rounded-2xl shadow-sm" />
+        <p className="text-xl font-bold" style={{ color: COLORS.dark }}>
+          കിറ്റ് ഫണ്ട്
+        </p>
+      </div>
+
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-xs rounded-2xl bg-white p-4"
+        style={{ border: `1px solid ${COLORS.border}` }}
+      >
+        <p className="mb-3 text-sm font-medium" style={{ color: COLORS.dark }}>
+          Enter admin code
+        </p>
+        <input
+          type="password"
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="Admin code"
+          autoFocus
+          className={`mb-3 rounded-xl ${inputClass}`}
+          style={{ color: COLORS.dark, border: `1px solid ${COLORS.border}` }}
+        />
+        {error && (
+          <p className="mb-3 text-xs" style={{ color: COLORS.error }}>
+            {error}
+          </p>
+        )}
+        <button
+          type="submit"
+          className="w-full rounded-xl py-2.5 text-sm font-semibold text-white"
+          style={{ backgroundColor: COLORS.green }}
+        >
+          Verify
+        </button>
+      </form>
+
+      <button
+        onClick={onViewOnly}
+        className="text-sm font-medium underline underline-offset-2"
+        style={{ color: COLORS.mutedLight }}
+      >
+        View collection
+      </button>
+    </div>
+  )
+}
+
 export default function App() {
   const [showSplash, setShowSplash] = useState(true)
   const [splashLeaving, setSplashLeaving] = useState(false)
+  const [role, setRole] = useState(() => localStorage.getItem(ROLE_STORAGE_KEY))
   const [tab, setTab] = useState('home')
   const [showRemoved, setShowRemoved] = useState(false)
   const [members, setMembers] = useState([])
@@ -326,6 +397,24 @@ export default function App() {
     [historyMonthPayments]
   )
 
+  const isAdmin = role === 'admin'
+  const isViewer = role === 'viewer'
+
+  function setAdminRole() {
+    localStorage.setItem(ROLE_STORAGE_KEY, 'admin')
+    setRole('admin')
+  }
+
+  function setViewerRole() {
+    localStorage.setItem(ROLE_STORAGE_KEY, 'viewer')
+    setRole('viewer')
+  }
+
+  function switchRole() {
+    localStorage.removeItem(ROLE_STORAGE_KEY)
+    setRole(null)
+  }
+
   function showToast(message) {
     clearTimeout(toastTimerRef.current)
     clearTimeout(toastHideTimerRef.current)
@@ -416,6 +505,7 @@ export default function App() {
   }
 
   function startPress(member) {
+    if (isViewer) return
     longPressFiredRef.current = false
     if (paidMemberIds.has(member.id)) return
     pressTimerRef.current = setTimeout(() => {
@@ -432,6 +522,7 @@ export default function App() {
   }
 
   function handleRowClick(member) {
+    if (isViewer) return
     if (longPressFiredRef.current) {
       longPressFiredRef.current = false
       return
@@ -548,10 +639,13 @@ export default function App() {
         onTouchCancel={cancelPress}
         onContextMenu={(e) => e.preventDefault()}
         onClick={() => handleRowClick(member)}
-        className="flex cursor-pointer items-center gap-3 rounded-2xl px-3 py-3 select-none transition-colors duration-300"
+        className={`flex items-center gap-3 rounded-2xl px-3 py-3 select-none transition-colors duration-300${
+          isViewer ? ' cursor-default' : ' cursor-pointer'
+        }`}
         style={{
           backgroundColor: paid ? COLORS.greenTint : '#FFFFFF',
           border: `1px solid ${paid ? COLORS.green : COLORS.border}`,
+          opacity: isViewer ? 0.85 : 1,
         }}
       >
         <span className="shrink-0" style={{ color: paid ? COLORS.green : COLORS.mutedLight }}>
@@ -590,6 +684,10 @@ export default function App() {
     window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer')
   }
 
+  if (!showSplash && !role) {
+    return <GateScreen onVerify={setAdminRole} onViewOnly={setViewerRole} />
+  }
+
   return (
     <>
       {showSplash && <SplashScreen leaving={splashLeaving} />}
@@ -600,25 +698,40 @@ export default function App() {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <header className="mb-5 flex flex-col gap-1">
-        <h1 className="text-2xl font-bold" style={{ color: COLORS.dark }}>
-          കിറ്റ് ഫണ്ട്
-        </h1>
-        {tab === 'home' ? (
-          <label className="w-fit">
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              className="cursor-pointer rounded-lg border-none bg-transparent p-0 text-sm outline-none focus:ring-2 focus:ring-[#2E9E6B]/40"
-              style={{ color: COLORS.mutedLight }}
-            />
-          </label>
-        ) : (
-          <p className="text-sm" style={{ color: COLORS.mutedLight }}>
-            Payment history
-          </p>
-        )}
+        <header className="mb-5 flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold" style={{ color: COLORS.dark }}>
+            കിറ്റ് ഫണ്ട്
+          </h1>
+          {tab === 'home' ? (
+            isAdmin ? (
+              <label className="w-fit">
+                <input
+                  type="month"
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                  className="cursor-pointer rounded-lg border-none bg-transparent p-0 text-sm outline-none focus:ring-2 focus:ring-[#2E9E6B]/40"
+                  style={{ color: COLORS.mutedLight }}
+                />
+              </label>
+            ) : (
+              <p className="text-sm" style={{ color: COLORS.mutedLight }}>
+                {monthLabel(month)}
+              </p>
+            )
+          ) : (
+            <p className="text-sm" style={{ color: COLORS.mutedLight }}>
+              Payment history
+            </p>
+          )}
+        </div>
+        <button
+          onClick={switchRole}
+          className="shrink-0 pt-1 text-xs underline underline-offset-2"
+          style={{ color: COLORS.mutedLight }}
+        >
+          Switch view
+        </button>
       </header>
 
       {error && (
@@ -677,56 +790,58 @@ export default function App() {
             </div>
           </div>
 
-          <div
-            className="mb-4 rounded-2xl bg-white p-3"
-            style={{ border: `1px solid ${COLORS.border}` }}
-          >
-            <form onSubmit={addMember} className="flex gap-2">
-              <input
-                type="text"
-                value={newMemberName}
-                onChange={(e) => setNewMemberName(e.target.value)}
-                placeholder="Add a member"
-                className={`flex-1 rounded-xl ${inputClass}`}
-                style={{ color: COLORS.dark, border: `1px solid ${COLORS.border}` }}
-              />
-              <div className="relative w-24 shrink-0">
-                <span
-                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm"
-                  style={{ color: COLORS.mutedLight }}
-                >
-                  {CURRENCY}
-                </span>
+          {isAdmin && (
+            <div
+              className="mb-4 rounded-2xl bg-white p-3"
+              style={{ border: `1px solid ${COLORS.border}` }}
+            >
+              <form onSubmit={addMember} className="flex gap-2">
                 <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={newMemberAmount}
-                  onChange={(e) => setNewMemberAmount(e.target.value)}
-                  aria-label="Amount"
-                  className={`rounded-xl ${inputClass}`}
-                  style={{
-                    color: COLORS.dark,
-                    border: `1px solid ${COLORS.border}`,
-                    paddingLeft: '1.5rem',
-                  }}
+                  type="text"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  placeholder="Add a member"
+                  className={`flex-1 rounded-xl ${inputClass}`}
+                  style={{ color: COLORS.dark, border: `1px solid ${COLORS.border}` }}
                 />
-              </div>
-              <button
-                type="submit"
-                disabled={addingMember}
-                aria-label="Add member"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                style={{ backgroundColor: COLORS.dark }}
-              >
-                +
-              </button>
-            </form>
-            <p className="mt-2 px-2 text-xs" style={{ color: COLORS.muted }}>
-              Defaults to {CURRENCY}
-              {MONTHLY_AMOUNT} per member — editable above
-            </p>
-          </div>
+                <div className="relative w-24 shrink-0">
+                  <span
+                    className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm"
+                    style={{ color: COLORS.mutedLight }}
+                  >
+                    {CURRENCY}
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={newMemberAmount}
+                    onChange={(e) => setNewMemberAmount(e.target.value)}
+                    aria-label="Amount"
+                    className={`rounded-xl ${inputClass}`}
+                    style={{
+                      color: COLORS.dark,
+                      border: `1px solid ${COLORS.border}`,
+                      paddingLeft: '1.5rem',
+                    }}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={addingMember}
+                  aria-label="Add member"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ backgroundColor: COLORS.dark }}
+                >
+                  +
+                </button>
+              </form>
+              <p className="mt-2 px-2 text-xs" style={{ color: COLORS.muted }}>
+                Defaults to {CURRENCY}
+                {MONTHLY_AMOUNT} per member — editable above
+              </p>
+            </div>
+          )}
 
           <div className="relative mb-4">
             <SearchIcon
@@ -743,9 +858,11 @@ export default function App() {
             />
           </div>
 
-          <p className="mb-4 text-center text-xs" style={{ color: COLORS.mutedLight }}>
-            Press and hold an unpaid member to edit or remove them
-          </p>
+          {isAdmin && (
+            <p className="mb-4 text-center text-xs" style={{ color: COLORS.mutedLight }}>
+              Press and hold an unpaid member to edit or remove them
+            </p>
+          )}
 
           {loading ? (
             <p className="text-sm" style={{ color: COLORS.mutedLight }}>
@@ -800,24 +917,41 @@ export default function App() {
       ) : (
         <div key="history" className="page-enter">
           <div className="mb-4 grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => setShowRemoved((v) => !v)}
-              aria-pressed={showRemoved}
-              aria-label="Toggle removed members"
-              className="cursor-pointer rounded-2xl bg-white p-3 text-left transition-transform active:scale-95"
-              style={{ border: `1px solid ${showRemoved ? COLORS.green : COLORS.border}` }}
-            >
-              <p
-                className="text-[10px] font-medium uppercase leading-tight tracking-wide"
-                style={{ color: COLORS.muted }}
+            {isAdmin ? (
+              <button
+                type="button"
+                onClick={() => setShowRemoved((v) => !v)}
+                aria-pressed={showRemoved}
+                aria-label="Toggle removed members"
+                className="cursor-pointer rounded-2xl bg-white p-3 text-left transition-transform active:scale-95"
+                style={{ border: `1px solid ${showRemoved ? COLORS.green : COLORS.border}` }}
               >
-                Members
-              </p>
-              <p className="mt-1 text-lg font-bold sm:text-2xl" style={{ color: COLORS.dark }}>
-                {members.length}
-              </p>
-            </button>
+                <p
+                  className="text-[10px] font-medium uppercase leading-tight tracking-wide"
+                  style={{ color: COLORS.muted }}
+                >
+                  Members
+                </p>
+                <p className="mt-1 text-lg font-bold sm:text-2xl" style={{ color: COLORS.dark }}>
+                  {members.length}
+                </p>
+              </button>
+            ) : (
+              <div
+                className="rounded-2xl bg-white p-3 text-left"
+                style={{ border: `1px solid ${COLORS.border}` }}
+              >
+                <p
+                  className="text-[10px] font-medium uppercase leading-tight tracking-wide"
+                  style={{ color: COLORS.muted }}
+                >
+                  Members
+                </p>
+                <p className="mt-1 text-lg font-bold sm:text-2xl" style={{ color: COLORS.dark }}>
+                  {members.length}
+                </p>
+              </div>
+            )}
             <div
               className="rounded-2xl bg-white p-3"
               style={{ border: `1px solid ${COLORS.border}` }}

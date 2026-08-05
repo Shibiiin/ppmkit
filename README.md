@@ -44,6 +44,7 @@ title is "PPM Kit".
    VITE_SUPABASE_ANON_KEY=your-anon-key
    VITE_MONTHLY_AMOUNT=100
    VITE_CURRENCY_SYMBOL=₹
+   VITE_ADMIN_CODE=your-admin-code
    ```
 
    `.env` is gitignored and should never be committed — it holds real
@@ -54,6 +55,8 @@ title is "PPM Kit".
    per-member (`members.default_amount`), so members can pay different
    amounts. `VITE_CURRENCY_SYMBOL` is just a display symbol used in the UI
    and the WhatsApp report — change it to match your currency.
+   `VITE_ADMIN_CODE` is the code entered on first visit to unlock admin
+   (edit) access — see "Role gate" below.
 
 4. Start the dev server:
 
@@ -88,23 +91,44 @@ History, active tab shown in green):
 - A month picker to browse any past (or future) month and see who paid and
   how much, independent of what's selected on Home.
 
+## Role gate
+
+On first visit, the app shows a gate screen instead of the dashboard:
+entering `VITE_ADMIN_CODE` correctly grants admin access, or "View
+collection" grants read-only viewer access. The choice is saved to
+`localStorage` (`ppmkit_role`) so returning visitors skip the gate. A
+"Switch view" link (top-right of the dashboard) clears the saved role and
+returns to the gate — useful for a shared device or upgrading a viewer to
+admin.
+
+Viewers see the same dashboard but can't toggle paid status, add/edit/
+remove members, restore removed members, or change the Home month picker;
+Search, History, and "Share on WhatsApp" stay available. Admins are
+unrestricted, matching current behavior.
+
 ## Security note
 
-This app has no login system — anyone with the deployed URL and the public
-`anon` key can read and write data, matching the "members mark themselves
-paid" design. If you need to restrict who can mark payments, add Supabase
-Auth and tighten the RLS policies in `supabase-schema.sql` to check
-`auth.uid()`.
+This is a soft gate, not real authentication: `VITE_ADMIN_CODE` ships in
+the client bundle (readable via DevTools/network tab) and the saved role
+in `localStorage` can be cleared or edited by anyone with browser access.
+It only deters casual accidental edits — it does not replace Supabase
+Auth/RLS as an access control. Anyone with the deployed URL and the
+public `anon` key can still read and write data directly against
+Supabase, matching the "members mark themselves paid" design. If you need
+real access control, add Supabase Auth and tighten the RLS policies in
+`supabase-schema.sql` to check `auth.uid()`.
 
 ## Deployment
 
 The app is deployed to **Vercel**, linked via `npx vercel link` with Git
 integration connected to this repo — every push to `main` auto-deploys to
-Production, other branches/PRs get Preview deployments. All four env vars
+Production, other branches/PRs get Preview deployments. All five env vars
 (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_MONTHLY_AMOUNT`,
-`VITE_CURRENCY_SYMBOL`) are set for Production, Preview, and Development
-via `vercel env add` — all four matter, since a missing one silently
-falls back to an empty/zero value at build time rather than erroring.
+`VITE_CURRENCY_SYMBOL`, `VITE_ADMIN_CODE`) are set for Production,
+Preview, and Development via `vercel env add` — all five matter, since a
+missing one silently falls back to an empty/zero value at build time
+rather than erroring (a missing `VITE_ADMIN_CODE` would mean no code can
+ever match, locking everyone out of admin access).
 
 Vercel serves from the domain root, so `vite.config.js`'s `base` resolves
 to `/` there (see the comment on `base` in that file for the full
