@@ -90,6 +90,33 @@ function HistoryIcon(props) {
   )
 }
 
+function EyeIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path
+        d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
+function EyeOffIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path
+        d="M17.94 17.94A10.5 10.5 0 0 1 12 19c-7 0-10.5-7-10.5-7a19.4 19.4 0 0 1 4.22-5.36M9.9 4.24A9.1 9.1 0 0 1 12 5c7 0 10.5 7 10.5 7a19.4 19.4 0 0 1-2.16 3.19"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M1 1l22 22" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function LogoutIcon(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
@@ -126,6 +153,7 @@ function SplashScreen({ leaving }) {
 function GateScreen({ onVerify, onViewOnly }) {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
+  const [showCode, setShowCode] = useState(false)
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -157,15 +185,38 @@ function GateScreen({ onVerify, onViewOnly }) {
         <p className="mb-3 text-sm font-medium" style={{ color: COLORS.dark }}>
           Enter admin code
         </p>
+        {/* Hidden username field so browser password managers recognize this
+            as a login form and offer to save/autofill the admin code. */}
         <input
-          type="password"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="Admin code"
-          autoFocus
-          className={`mb-3 rounded-xl ${inputClass}`}
-          style={{ color: COLORS.dark, border: `1px solid ${COLORS.border}` }}
+          type="text"
+          name="username"
+          autoComplete="username"
+          value="ppmkit-admin"
+          readOnly
+          hidden
         />
+        <div className="relative mb-3">
+          <input
+            type={showCode ? 'text' : 'password'}
+            name="admin-code"
+            autoComplete="current-password"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="Admin code"
+            autoFocus
+            className={`rounded-xl pr-10 ${inputClass}`}
+            style={{ color: COLORS.dark, border: `1px solid ${COLORS.border}` }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowCode((v) => !v)}
+            aria-label={showCode ? 'Hide admin code' : 'Show admin code'}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2"
+            style={{ color: COLORS.mutedLight }}
+          >
+            {showCode ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+          </button>
+        </div>
         {error && (
           <p className="mb-3 text-xs" style={{ color: COLORS.error }}>
             {error}
@@ -421,7 +472,7 @@ export default function App() {
   }
 
   function logout() {
-    if (window.confirm('Log out?')) {
+    if (window.confirm('Switch view? This will log you out.')) {
       localStorage.removeItem(ROLE_STORAGE_KEY)
       setRole(null)
     }
