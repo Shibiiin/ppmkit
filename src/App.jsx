@@ -90,6 +90,16 @@ function HistoryIcon(props) {
   )
 }
 
+function LogoutIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M16 17l5-5-5-5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M21 12H9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function SplashScreen({ leaving }) {
   return (
     <div
@@ -410,9 +420,11 @@ export default function App() {
     setRole('viewer')
   }
 
-  function switchRole() {
-    localStorage.removeItem(ROLE_STORAGE_KEY)
-    setRole(null)
+  function logout() {
+    if (window.confirm('Log out?')) {
+      localStorage.removeItem(ROLE_STORAGE_KEY)
+      setRole(null)
+    }
   }
 
   function showToast(message) {
@@ -698,40 +710,31 @@ export default function App() {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <header className="mb-5 flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold" style={{ color: COLORS.dark }}>
-            കിറ്റ് ഫണ്ട്
-          </h1>
-          {tab === 'home' ? (
-            isAdmin ? (
-              <label className="w-fit">
-                <input
-                  type="month"
-                  value={month}
-                  onChange={(e) => setMonth(e.target.value)}
-                  className="cursor-pointer rounded-lg border-none bg-transparent p-0 text-sm outline-none focus:ring-2 focus:ring-[#2E9E6B]/40"
-                  style={{ color: COLORS.mutedLight }}
-                />
-              </label>
-            ) : (
-              <p className="text-sm" style={{ color: COLORS.mutedLight }}>
-                {monthLabel(month)}
-              </p>
-            )
+        <header className="mb-5 flex flex-col gap-1">
+        <h1 className="text-2xl font-bold" style={{ color: COLORS.dark }}>
+          കിറ്റ് ഫണ്ട്
+        </h1>
+        {tab === 'home' ? (
+          isAdmin ? (
+            <label className="w-fit">
+              <input
+                type="month"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="cursor-pointer rounded-lg border-none bg-transparent p-0 text-sm outline-none focus:ring-2 focus:ring-[#2E9E6B]/40"
+                style={{ color: COLORS.mutedLight }}
+              />
+            </label>
           ) : (
             <p className="text-sm" style={{ color: COLORS.mutedLight }}>
-              Payment history
+              {monthLabel(month)}
             </p>
-          )}
-        </div>
-        <button
-          onClick={switchRole}
-          className="shrink-0 pt-1 text-xs underline underline-offset-2"
-          style={{ color: COLORS.mutedLight }}
-        >
-          Switch view
-        </button>
+          )
+        ) : (
+          <p className="text-sm" style={{ color: COLORS.mutedLight }}>
+            Payment history
+          </p>
+        )}
       </header>
 
       {error && (
@@ -1096,6 +1099,14 @@ export default function App() {
         >
           <HistoryIcon className="h-5 w-5" />
           History
+        </button>
+        <button
+          onClick={logout}
+          className="flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium"
+          style={{ color: COLORS.mutedLight }}
+        >
+          <LogoutIcon className="h-5 w-5" />
+          Logout
         </button>
       </nav>
 

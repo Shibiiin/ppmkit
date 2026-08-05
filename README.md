@@ -97,9 +97,9 @@ On first visit, the app shows a gate screen instead of the dashboard:
 entering `VITE_ADMIN_CODE` correctly grants admin access, or "View
 collection" grants read-only viewer access. The choice is saved to
 `localStorage` (`ppmkit_role`) so returning visitors skip the gate. A
-"Switch view" link (top-right of the dashboard) clears the saved role and
-returns to the gate — useful for a shared device or upgrading a viewer to
-admin.
+"Logout" item in the bottom nav (available to both roles, with a
+confirm prompt) clears the saved role and returns to the gate — useful
+for a shared device or upgrading a viewer to admin.
 
 Viewers see the same dashboard but can't toggle paid status, add/edit/
 remove members, restore removed members, or change the Home month picker;
